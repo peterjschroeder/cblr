@@ -1,0 +1,362 @@
+#!/usr/bin/python3
+from asciimatics.event import KeyboardEvent
+from asciimatics.exceptions import NextScene, ResizeScreenError, StopApplication
+from asciimatics.parsers import AsciimaticsParser
+from asciimatics.scene import Scene
+from asciimatics.screen import Screen
+from asciimatics.widgets import Button, Divider, Frame, Layout, ListBox, MultiColumnListBox, PopUpDialog, Text, TextBox, VerticalDivider, Widget
+from asciimatics.widgets.utilities import THEMES
+from collections import defaultdict
+import configparser, csv, os, shlex, subprocess, sys
+from fuzzywuzzy import fuzz
+from natsort import humansorted
+from xdg.BaseDirectory import *
+
+# Configuration
+os.makedirs(os.path.join(xdg_config_home, "cblr"), exist_ok=True)
+config_defaults_cblr = {
+        'path_cb': os.getenv("HOME")+'/Documents/Comic Books/',
+        'path_rlists': os.getenv("HOME")+'/.local/share/cb/rlists/',
+        'viewer_cb': 'zathura',
+        'pgarg': '--page=',
+        'fuzzy_ratio': '80',
+        }
+
+colors = {
+        'default': Screen.COLOUR_DEFAULT,
+        'black': Screen.COLOUR_BLACK,
+        'red': Screen.COLOUR_RED,
+        'green': Screen.COLOUR_GREEN,
+        'yellow': Screen.COLOUR_YELLOW,
+        'blue': Screen.COLOUR_BLUE,
+        'magenta': Screen.COLOUR_MAGENTA,
+        'cyan': Screen.COLOUR_CYAN,
+        'white': Screen.COLOUR_WHITE
+        }
+
+attributes = {
+        'bold': Screen.A_BOLD,
+        'normal': Screen.A_NORMAL,
+        'reverse': Screen.A_REVERSE,
+        'underline': Screen.A_UNDERLINE
+        }
+
+config_defaults_pallette = {
+        'background': 'white,normal,black',
+        'borders': 'red,bold,black',
+        'button': 'white,normal,black',
+        'control': 'yellow,normal,black',
+        'disabled': 'black,bold,blue',
+        'edit_text': 'white,normal,black',
+        'field': 'white,normal,black',
+        'focus_button': 'yellow,bold,red',
+        'focus_control': 'yellow,normal,black',
+        'focus_edit_text': 'yellow,bold,red',
+        'focus_field': 'white,normal,black',
+        'focus_readonly': 'black,bold,cyan',
+        'invalid': 'yellow,bold,red',
+        'label': 'yellow,normal,black',
+        'readonly': 'black,bold,blue',
+        'scroll': 'red,normal,yellow',
+        'selected_control': 'yellow,bold,black',
+        'selected_field': 'black,normal,white',
+        'selected_focus_control': 'yellow,bold,red',
+        'selected_focus_field': 'yellow,bold,red',
+        'title': 'white,bold,black'
+        }
+
+config = configparser.ConfigParser()
+
+def config_create():
+    config.add_section('cblr')
+    config.add_section('pallette')
+
+    for i in config_defaults_cblr:
+        config['cblr'][i] = config_defaults_cblr[i]
+
+    for i in config_defaults_pallette:
+        config['pallette'][i] = config_defaults_pallette[i]
+
+    with open(os.path.join(xdg_config_home, 'cblr/config'), 'w') as configfile:
+        config.write(configfile)
+
+if not os.path.exists(os.path.join(xdg_config_home, 'cblr/config')):
+    config_create()
+
+config.read(os.path.join(xdg_config_home, 'cblr/config'))
+
+# Check for missing keys
+for i in config_defaults_cblr:
+    if not config.has_option('cblr', i):
+        config['cblr'][i] = config_defaults_cblr[i]
+for i in config_defaults_pallette:
+    if not config.has_option('pallette', i):
+        config['pallette'][i] = config_defaults_pallette[i]
+with open(os.path.join(xdg_config_home, 'cblr/config'), 'w') as configfile:
+    config.write(configfile)
+
+THEMES.update({
+    "default": {
+        'background': (colors[config['pallette']['background'].split(',')[0]], attributes[config['pallette']['background'].split(',')[1]], colors[config['pallette']['background'].split(',')[2]]),
+        'borders': (colors[config['pallette']['borders'].split(',')[0]], attributes[config['pallette']['borders'].split(',')[1]], colors[config['pallette']['borders'].split(',')[2]]),
+        'button': (colors[config['pallette']['button'].split(',')[0]], attributes[config['pallette']['button'].split(',')[1]], colors[config['pallette']['button'].split(',')[2]]),
+        'control': (colors[config['pallette']['control'].split(',')[0]], attributes[config['pallette']['control'].split(',')[1]], colors[config['pallette']['control'].split(',')[2]]),
+        'disabled':(colors[config['pallette']['disabled'].split(',')[0]], attributes[config['pallette']['disabled'].split(',')[1]], colors[config['pallette']['disabled'].split(',')[2]]),
+        'edit_text': (colors[config['pallette']['edit_text'].split(',')[0]], attributes[config['pallette']['edit_text'].split(',')[1]], colors[config['pallette']['edit_text'].split(',')[2]]),
+        'field': (colors[config['pallette']['field'].split(',')[0]], attributes[config['pallette']['field'].split(',')[1]], colors[config['pallette']['field'].split(',')[2]]),
+        'focus_edit_text': (colors[config['pallette']['focus_edit_text'].split(',')[0]], attributes[config['pallette']['focus_edit_text'].split(',')[1]], colors[config['pallette']['focus_edit_text'].split(',')[2]]),
+        'focus_button':(colors[config['pallette']['focus_button'].split(',')[0]], attributes[config['pallette']['focus_button'].split(',')[1]], colors[config['pallette']['focus_button'].split(',')[2]]),
+        'focus_field': (colors[config['pallette']['focus_field'].split(',')[0]], attributes[config['pallette']['focus_field'].split(',')[1]], colors[config['pallette']['focus_field'].split(',')[2]]),
+        'focus_readonly':(colors[config['pallette']['focus_readonly'].split(',')[0]], attributes[config['pallette']['focus_readonly'].split(',')[1]], colors[config['pallette']['focus_readonly'].split(',')[2]]),
+        'invalid': (colors[config['pallette']['invalid'].split(',')[0]], attributes[config['pallette']['invalid'].split(',')[1]], colors[config['pallette']['invalid'].split(',')[2]]),
+        'label': (colors[config['pallette']['label'].split(',')[0]], attributes[config['pallette']['label'].split(',')[1]], colors[config['pallette']['label'].split(',')[2]]),
+        'readonly': (colors[config['pallette']['readonly'].split(',')[0]], attributes[config['pallette']['readonly'].split(',')[1]], colors[config['pallette']['readonly'].split(',')[2]]),
+        'scroll': (colors[config['pallette']['scroll'].split(',')[0]], attributes[config['pallette']['scroll'].split(',')[1]], colors[config['pallette']['scroll'].split(',')[2]]),
+        'selected_field': (colors[config['pallette']['selected_field'].split(',')[0]], attributes[config['pallette']['selected_field'].split(',')[1]], colors[config['pallette']['selected_field'].split(',')[2]]),
+        'selected_focus_control': (colors[config['pallette']['selected_focus_control'].split(',')[0]], attributes[config['pallette']['selected_focus_control'].split(',')[1]], colors[config['pallette']['selected_focus_control'].split(',')[2]]),
+        'selected_focus_field': (colors[config['pallette']['selected_focus_field'].split(',')[0]], attributes[config['pallette']['selected_focus_field'].split(',')[1]], colors[config['pallette']['selected_focus_field'].split(',')[2]]),
+        'title': (colors[config['pallette']['title'].split(',')[0]], attributes[config['pallette']['title'].split(',')[1]], colors[config['pallette']['title'].split(',')[2]])
+        }})
+
+rlists = []
+fuzzy_books = []
+prev_widget = None
+have_read = []
+
+def rlists_load():
+    global rlists
+
+    for root, dirs, files in os.walk(config['cblr']['path_rlists']):
+        for f in files:
+            if f.endswith('.cbl'):
+                with open(root+"/"+f) as j:
+                    reader = csv.reader(j, delimiter="\t")
+                    rows = []
+                    for i in reader:
+                        if i:
+                            rows.append(i)
+                rlists.append([f.removesuffix('.cbl'), rows])
+    rlists = humansorted(rlists)
+
+def hread_load():
+    global have_read
+
+    os.makedirs(os.path.join(xdg_cache_home, 'cblr'), exist_ok=True)
+
+    try:
+        f = open(os.path.join(xdg_cache_home, 'cblr', 'read.db'), 'r')
+        have_read = [line.rstrip('\n') for line in f]
+        f.close()
+    except:
+        pass
+
+def get_pgnum(cbook):
+    for i in rlists:
+        for j in i:
+            for k in j:
+                if cbook in k[0]:
+                    try:
+                        return k[1]
+                    except:
+                        return "1"
+    return "1"
+
+def cb_open(cbook, page):
+    if config['cblr']['pgarg']:
+        subprocess.run(shlex.split(config['cblr']['viewer_cb']+" "+config['cblr']['pgarg']+page)+[cbook], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    else:
+        subprocess.run(shlex.split(config['cblr']['viewer_cb'])+[cbook], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+def cb_read(cbook):
+    global have_read
+
+    if cbook not in have_read:
+        f = open(os.path.join(xdg_cache_home, 'cblr', 'read.db'), 'a')
+        f.write(cbook+"\n")
+        f.close()
+        have_read.append(cbook)
+
+def cb_unread(cbook):
+    lines = []
+    f = open(os.path.join(xdg_cache_home, 'cblr', 'read.db'), 'r')
+    for i in f.readlines():
+        if cbook not in i:
+            lines.append(i)
+    f.close()
+
+    f = open(os.path.join(xdg_cache_home, 'cblr', 'read.db'), 'w')
+    for g in lines:
+        f.write(g)
+    f.close()
+
+    have_read.remove(cbook)
+
+class cblrFrame(Frame):
+    def __init__(self, screen):
+        super(cblrFrame, self).__init__(
+            screen, screen.height, screen.width, has_border=True, name="cblr", can_scroll=False)
+
+        layout = Layout([30,1,69], fill_frame=True)
+
+        self.add_layout(layout)
+
+        self._rlists = ListBox(Widget.FILL_FRAME,options=[(rlists[i][0],i) for i in range(0,len(rlists))], add_scroll_bar=True, on_change=self.LoadBooks)
+
+        self._rlist_books = MultiColumnListBox(Widget.FILL_FRAME,["<2", 0],options=[], add_scroll_bar=True)
+
+        layout.add_widget(self._rlists, 0)
+        layout.add_widget(VerticalDivider(), 1)
+        layout.add_widget(self._rlist_books, 2)
+
+        self.fix()
+
+    def LoadBooks(self):
+        self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+
+    def process_event(self, event):
+        global fuzzy_books, prev_widget
+
+        if isinstance(event, KeyboardEvent):
+            if event.key_code in [Screen.ctrl("q")]:
+                raise StopApplication("User quit")
+            if self._rlist_books._has_focus:
+                if event.key_code == 10 or event.key_code == 13 or event.key_code == Screen.KEY_RIGHT:
+                    book_found = False
+
+                    # If the list is empty, bail out
+                    if not self._rlist_books.options:
+                        return
+
+                    for root, dirs, files in os.walk(config['cblr']['path_cb']):
+                        for f in files:
+                            if self._rlist_books.options[self._rlist_books.value][0][1] == f[:-4]:
+                                book_found = True
+                                cb_open(root+"/"+f, get_pgnum(self._rlist_books.options[self._rlist_books.value][0][1]))
+                                cb_read(self._rlist_books.options[self._rlist_books.value][0][1])
+                                self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+                                break
+                        else:
+                            continue
+                        break
+
+                    # Try again with fuzzy matching if unsuccessful with the previous loop
+                    fuzzy_books = []
+                    if not book_found:
+                        for root, dirs, files in os.walk(config['cblr']['path_cb']):
+                            for f in files:
+                                if fuzz.token_set_ratio(self._rlist_books.options[self._rlist_books.value][0], f) > int(config['cblr']['fuzzy_ratio']):
+                                    book_found = True
+                                    fuzzy_books.append(root+"/"+f)
+                        if book_found:
+                            if len(fuzzy_books) == 1:
+                                cb_open(fuzzy_books[0], get_pgnum(self._rlist_books.options[self._rlist_books.value][0][1]))
+                                cb_read(self._rlist_books.options[self._rlist_books.value][0][1])
+                                self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+                            else:
+                                prev_widget = self
+                                self._scene.add_effect(fuzzyFrame(self._screen))
+                        else:
+                                prev_widget = self
+                                self._scene.add_effect(notfoundFrame(self._screen))
+                    return
+                elif event.key_code in [Screen.ctrl("r")]:
+                    if self._rlist_books._has_focus:
+                        cb_read(self._rlist_books.options[self._rlist_books.value][0][1])
+                        self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+                elif event.key_code in [Screen.ctrl("a")]:
+                    if self._rlist_books._has_focus:
+                        for i in self._rlist_books.options:
+                            cb_read(i[0][1])
+                        self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+                elif event.key_code in [Screen.ctrl("u")]:
+                    if self._rlist_books._has_focus:
+                        cb_unread(self._rlist_books.options[self._rlist_books.value][0][1])
+                        self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+                elif event.key_code in [Screen.ctrl("d")]:
+                    if self._rlist_books._has_focus:
+                        for i in self._rlist_books.options:
+                            cb_unread(i[0][1])
+                        self._rlist_books.options = [(['*' if rlists[self._rlists.value][1][i][0] in have_read else '', rlists[self._rlists.value][1][i][0]],i) for i in range(0,len(rlists[self._rlists.value][1]))]
+
+        return super(cblrFrame, self).process_event(event)
+
+class fuzzyFrame(Frame):
+    def __init__(self, screen):
+        super(fuzzyFrame, self).__init__(
+                screen, screen.height, screen.width, has_border=True, name="fuzzy", can_scroll=False)
+
+        layout = Layout([100], fill_frame=True)
+
+        self.add_layout(layout)
+
+        self._flist = ListBox(Widget.FILL_FRAME,options=[(fuzzy_books[i],i) for i in range(0,len(fuzzy_books))], add_scroll_bar=True)
+
+        layout.add_widget(self._flist, 0)
+
+        self.fix()
+
+    def process_event(self, event):
+        global prev_widget
+
+        def close_window(self):
+            self._scene.remove_effect(self)
+            if prev_widget:
+                prev_widget._rlist_books._has_focus = True
+
+        if isinstance(event, KeyboardEvent):
+            if event.key_code == Screen.KEY_ESCAPE or event.key_code == ord('q'):
+                close_window(self)
+                
+            if event.key_code == 10 or event.key_code == 13:
+                close_window(self)
+                cb_open(self._flist.options[self._flist.value][0], get_pgnum(prev_widget._rlist_books.options[prev_widget._rlist_books.value][0][1]))
+                cb_read(prev_widget._rlist_books.options[prev_widget._rlist_books.value][0][1])
+                prev_widget._rlist_books.options = [(['*' if rlists[prev_widget._rlists.value][1][i][0] in have_read else '', rlists[prev_widget._rlists.value][1][i][0]],i) for i in range(0,len(rlists[prev_widget._rlists.value][1]))]
+                    
+        # Now pass on to lower levels for normal handling of the event.
+        return super(fuzzyFrame, self).process_event(event)
+
+class notfoundFrame(Frame):
+    def __init__(self, screen):
+        super(notfoundFrame, self).__init__(
+                screen, 7, 31, has_border=True, name="notfound", can_scroll=False)
+
+        layout = Layout([100], fill_frame=False)
+
+        self.add_layout(layout)
+
+        self._message = TextBox(3, as_string=True, line_wrap=True)
+        self._message.value = "No matching comic book found."
+        self._message.disabled = True
+        self._message.custom_colour = "field"
+        layout.add_widget(self._message, 0)
+        layout.add_widget(Button("OK", self._close), 0)
+        
+        self.fix()
+
+    def _close(self):
+        global prev_widget
+
+        self._scene.remove_effect(self)
+        if prev_widget:
+            prev_widget._rlist_books._has_focus = True
+
+def cblr(screen, scene):
+    screen.play([Scene([cblrFrame(screen)], -1)], stop_on_resize=True, start_scene=scene, allow_int=True)
+
+def main():
+    rlists_load()
+    hread_load()
+
+    last_scene = None
+
+    while True:
+        try:
+            Screen.wrapper(cblr, catch_interrupt=False, arguments=[last_scene])
+            sys.exit(0)
+        except ResizeScreenError as e:
+            last_scene = e.scene
+
+if __name__ == "__main__":
+    main()
+

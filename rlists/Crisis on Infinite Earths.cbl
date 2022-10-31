@@ -35,7 +35,7 @@ World's Finest Comics #314
 Legion of Super-Heroes v2 #318
 Legion of Super-Heroes v2 #319
 Legion of Super-Heroes v2 #320
-Amethyst v1 #02
+Amethyst v2 #02
 G.I. Combat v1 #274
 G.I. Combat v1 #275
 G.I. Combat v1 #276
@@ -43,7 +43,7 @@ Wonder Woman v1 #323
 Action Comics #0564
 Warlord v1 #091
 Jonah Hex v1 #90
-Atari Force #18
+Atari Force v2 #18
 Batman v1 #384
 Detective Comics #0551
 The Flash v1 #350
@@ -136,7 +136,7 @@ Justice League of America v1 #245
 Omega Men v1 #33
 Wonder Woman v1 #329
 Crisis on Infinite Earths #11
-Amethyst v1 #13
+Amethyst v2 #13
 Green Lantern v2 #197
 Green Lantern v2 #198
 Crisis on Infinite Earths #12

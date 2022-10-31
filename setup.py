@@ -10,6 +10,6 @@ setup(
         author_email='peterjschroeder@gmail.com', 
         url='https://github.com/peterjschroeder/cblr',
         scripts=['cblr'],
-        install_requires=['asciimatics', 'fuzzywuzzy', 'natsort', 'python-Levenshtein']
+        install_requires=['asciimatics', 'fuzzywuzzy', 'natsort', 'python-Levenshtein', 'tuicolor @ git+https://github.com/peterjschroeder/tuicolor.git']
 )
 
